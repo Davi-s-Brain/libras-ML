@@ -34,6 +34,7 @@ export default function App() {
     
     const webcamRef = useRef(null);
     const canvasRef = useRef(null);
+    const lastSentSign = useRef(null)
 
     const [camState,
         setCamState] = useState("on");
@@ -46,7 +47,20 @@ export default function App() {
 
     let gamestate = 'started';
 
-    // let net;
+    const sendToPythonServer = async detectedSign => {
+      try {
+        await fetch("http://localhost:5000/receive_sign", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sign: detectedSign }),
+        })
+        console.log(`Sinal enviado ao Servidor: ${detectedSign}`)
+      } catch (error) {
+        console.error("Erro ao conectar com o servidor Servidor:", error)
+      }
+    }
 
     async function runHandpose() {
         const net = await handpose.load();
@@ -123,6 +137,14 @@ export default function App() {
                         .gestures
                         .map((p) => p.confidence);
                     const maxConfidence = confidence.indexOf(Math.max.apply(undefined, confidence));
+
+                    const currentDetectedSign = estimatedGestures.gestures[maxConfidence].name;
+
+                    // Só envia se o sinal atual for diferente do último enviado
+                    if (currentDetectedSign !== lastSentSign.current) {
+                      sendToPythonServer(currentDetectedSign)
+                      lastSentSign.current = currentDetectedSign
+                    }
 
                     //setting up game state, looking for thumb emoji
                     if (estimatedGestures.gestures[maxConfidence].name === 'thumbs_up' && gamestate !== 'played') {
